@@ -382,3 +382,6 @@ input[type=range].hue::-webkit-slider-thumb { margin-top: -4px; background: var(
   .pedit .ce-rail .tool { width: 54px; }
   .ce-seg button { padding: 0 8px; font-size: 12px; }
 }
+.ce-verdict { font-size: 14px; font-weight: 600; } .ce-verdict.ok { color: var(--ok); } .ce-verdict.bad { color: #ff8f84; } .ce-verdict.warn { color: var(--cadmium); }
+.ce-link em.warn { color: var(--cadmium); }
+.ce-link:disabled { opacity: .6; cursor: default; }

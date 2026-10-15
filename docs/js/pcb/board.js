@@ -308,6 +308,32 @@ export class Board {
     });
     return out;
   }
+
+  /** Confere a placa e devolve a lista de problemas: { sev: 'erro'|'aviso', kind, msg, at }. */
+  check(sch) {
+    const an = this.analyze(sch), out = [], poly = this.outline;
+    for (const s of an.shorts) out.push({ sev: 'erro', kind: 'short', msg: `Curto entre ${s.nets.join(' e ')}`, at: s.at });
+    const seen = new Set();
+    for (const r of an.ratsnest) { const k = r.net; out.push({ sev: 'erro', kind: 'unrouted', msg: `${r.net}: falta ligar${seen.has(k) ? ' (outro trecho)' : ''}`, at: [(r.a[0] + r.b[0]) / 2, (r.a[1] + r.b[1]) / 2] }); seen.add(k); }
+    if (sch) {
+      const have = new Set(this.fps.map((f) => f.part));
+      for (const p of sch.parts) if (isPhysical(p) && !have.has(p.id)) out.push({ sev: 'erro', kind: 'nofp', msg: `${p.ref || p.t} está no esquema mas não na placa (use “Atualizar do esquema”)`, at: null });
+    }
+    // pontas de trilha soltas
+    const near = (a, b) => Math.hypot(a[0] - b[0], a[1] - b[1]) < 0.011;
+    for (const t of this.tracks) for (const e of [t.a, t.b]) {
+      const probe = { k: 'cap', a: e, b: e, r: 0 };
+      const touches = this.tracks.some((o) => o !== t && o.l === t.l && (near(o.a, e) || near(o.b, e) || distPtSeg(e, o.a, o.b) <= o.w / 2)) ||
+        an.objs.some((o) => o.kind !== 'track' && o.layers.includes(t.l) && shapeDist(o.shape, probe) <= 0.001);
+      if (!touches) out.push({ sev: 'aviso', kind: 'dangling', msg: `Trilha (${t.l === 'F' ? 'frente' : 'verso'}) termina solta`, at: [e[0], e[1]] });
+    }
+    const inside = (p) => pointInPoly(p, poly);
+    for (const f of this.fps) if (!inside([f.x, f.y])) out.push({ sev: 'aviso', kind: 'outside', msg: `${(sch?.parts.find((p) => p.id === f.part)?.ref) || 'Furo'} está fora da placa`, at: [f.x, f.y] });
+    for (const t of this.tracks) if (!inside(t.a) || !inside(t.b)) out.push({ sev: 'aviso', kind: 'outside', msg: 'Trilha fora da placa', at: t.a });
+    for (const v of this.vias) if (!inside([v.x, v.y])) out.push({ sev: 'aviso', kind: 'outside', msg: 'Via fora da placa', at: [v.x, v.y] });
+    // pads sem rede (pino do esquema sem fio) só avisam quando a peça tem alguma ligação
+    return out;
+  }
   /**
    * Analisa a placa: junta o cobre que se toca, descobre a rede de cada ilha, acha curtos e
    * liga com "fios de ajuda" (ratsnest) o que ainda falta ligar.

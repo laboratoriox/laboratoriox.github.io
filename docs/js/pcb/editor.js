@@ -5,6 +5,7 @@ import { canvasOut } from '../circuit/render.js';
 import { getFootprint, choicesFor, footprintName } from './footprints.js';
 import { Board, snapTo, r2, distPtSeg, fpPoint, padShape, shapeDist, outlineRect, outlineRounded, outlineCircle, fpBoxPoly } from './board.js';
 import { paintBoard, PCB_THEME } from './render.js';
+import { autoroute } from './autoroute.js';
 
 const lsGet = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch {} };
@@ -31,7 +32,7 @@ export function mountPcbEditor(root, state, saver, { onExit, onSwitch }) {
   const vis = { F: true, B: true, silk: true, rat: true, refs: true, nets: false };
   const view = { x: 40, y: 40, k: 8 };
   let wireStart = null, wireEnd = null, wirePath = null, band = null, drag = null, spaceDown = false, hoverNet = null, hotPin = null, hotNet = null;
-  let raf = 0, ignoreUp = false, pinch = null, fromPanel = false;
+  let raf = 0, ignoreUp = false, pinch = null, fromPanel = false, focusMark = null, routing = false;
   const pointers = new Map();
   const th = PCB_THEME;
 
@@ -129,6 +130,7 @@ export function mountPcbEditor(root, state, saver, { onExit, onSwitch }) {
     if (tool === 'outline') {
       board.outline.forEach((p, i) => out.circle(p[0], p[1], 5 / k, { fill: i === selVertex ? '#fff' : th.sel, stroke: '#000', width: 1 / k }));
     }
+    if (focusMark) out.circle(focusMark[0], focusMark[1], 2.2, { stroke: '#fff', width: 0.3 });
     if (wirePath) out.poly(wirePath, { stroke: th[active], width: trackW });
     if (wireStart) out.circle(wireStart[0], wireStart[1], 0.5, { stroke: '#fff', width: 0.12 });
     if (hotPin) out.circle(hotPin[0], hotPin[1], 0.9, { stroke: '#fff', width: 0.12 });
@@ -171,6 +173,7 @@ export function mountPcbEditor(root, state, saver, { onExit, onSwitch }) {
     if (e.button === 1 || e.button === 2 || spaceDown || tool === 'pan') { drag = { type: 'pan', sx: w.sx, sy: w.sy, vx: view.x, vy: view.y }; canvas.classList.add('panning'); return; }
     if (tool === 'sel') {
       const hit = board.hit(w.x, w.y, tolW(), null);
+      { const an0 = analysis(), probe = { k: 'cap', a: [w.x, w.y], b: [w.x, w.y], r: 0 }, pad = an0.objs.find((o) => o.kind === 'pad' && shapeDist(o.shape, probe) <= 0); hotNet = pad?.net || (hit?.type === 'track' ? an0.objNet.get(hit.id) || null : null); }
       if (hit) {
         const list = hit.type === 'fp' ? sel.fps : hit.type === 'track' ? sel.tracks : sel.vias;
         if (list.includes(hit.id) && shift) { list.splice(list.indexOf(hit.id), 1); onSelChange(); drag = null; return; }
@@ -291,6 +294,28 @@ export function mountPcbEditor(root, state, saver, { onExit, onSwitch }) {
     updateHint(); return res;
   }
 
+  function focusAt(pt) {
+    if (!pt) return; const { w, h: hh } = size();
+    view.k = Math.max(view.k, 14); view.x = w / 2 - pt[0] * view.k; view.y = hh / 2 - pt[1] * view.k;
+    focusMark = pt; draw(); if (isMobile()) setSheet(null); setTimeout(() => { focusMark = null; draw(); }, 2500);
+  }
+  function runAuto(net) {
+    if (routing) return; routing = true; toast('Roteando… pode levar alguns segundos.');
+    setTimeout(() => {
+      let res;
+      try { res = autoroute(board, sch, { w: trackW, net: net || undefined }); } catch (e) { toast('Erro no roteamento: ' + e.message, 'err'); routing = false; return; }
+      routing = false;
+      if (!res.routed && !res.failed.length) toast('Não há ligações a fazer.');
+      else toast(`${res.routed} ligaç${res.routed === 1 ? 'ão feita' : 'ões feitas'}${res.failed.length ? `; ${res.failed.length} não consegui (falta espaço — mexa nas peças ou aumente a placa)` : '.'}`, res.failed.length ? 'err' : '');
+      draw(); renderPanel();
+    }, 40);
+  }
+  function clearTracks() {
+    if (!board.tracks.length && !board.vias.length) { toast('Não há trilhas.'); return; }
+    const m = modal('Apagar todas as trilhas?', h('p', {}, 'Remove todas as trilhas e vias da placa (as peças ficam). Dá para desfazer com Ctrl+Z.'), [
+      h('button.btn', { onclick: () => m.close() }, 'Cancelar'), h('button.btn.danger', { onclick: () => { m.close(); board.edit(() => { board.tracks = []; board.vias = []; }); clearSel(); onSelChange(); } }, 'Apagar')]);
+  }
+
   // ---------- teclado ----------
   function onKey(e) {
     if (document.querySelector('.modal-back')) return;
@@ -326,7 +351,7 @@ export function mountPcbEditor(root, state, saver, { onExit, onSwitch }) {
     if (selCount() === 1 && sel.fps.length === 1) kids.push(fpSection(board.fp(sel.fps[0])));
     else if (selCount() === 1 && sel.tracks.length === 1) kids.push(trackSection());
     else if (selCount() > 1) kids.push(h('section.ce-sec', {}, h('h3', {}, `${selCount()} itens selecionados`), h('div.ce-actions', {}, ...(sel.fps.length ? [act(icon.rotate, 'Girar', () => board.rotateFps(sel.fps)), act(icon.mirror, 'Outro lado', () => board.flipFps(sel.fps))] : []), act(icon.trash, 'Excluir', deleteSel, '.danger'))));
-    kids.push(boardSection(), layersSection(), linksSection());
+    kids.push(boardSection(), routeSection(), checkSection(), layersSection(), linksSection());
     panelBody.replaceChildren(...kids);
   }
   function fpSection(f) {
@@ -367,6 +392,20 @@ export function mountPcbEditor(root, state, saver, { onExit, onSwitch }) {
       h('div.ce-actions', {}, act(null, 'Retângulo', () => apply('rect')), act(null, 'Arredondada', () => apply('round')), act(null, 'Redonda (Ø = largura)', () => apply('circle'))),
       h('div.ce-actions', {}, act(icon.plus, 'Furo de fixação', () => { const bb = board.outlineBox(); const f = board.addFree('HOLE-3.2', snapTo(bb.x0 + 4, grid), snapTo(bb.y0 + 4, grid)); sel = { fps: [f.id], tracks: [], vias: [] }; setTool('sel'); onSelChange(); })),
       h('p.hint', {}, 'Dica: use a ferramenta Contorno para desenhar qualquer formato, puxando os cantos.'));
+  }
+  function routeSection() {
+    const an = analysis();
+    return h('section.ce-sec', {}, h('h3', {}, 'Roteamento automático'),
+      h('p.hint', {}, 'Desenha as trilhas que faltam, usando frente, verso e vias, com a largura escolhida e sem encostar em outras redes.'),
+      h('div.ce-actions', {}, h('button.btn.sm.primary', { type: 'button', disabled: !an.unrouted, onclick: () => runAuto(null) }, 'Rotear tudo'),
+        hotNet ? h('button.btn.sm', { type: 'button', onclick: () => runAuto(hotNet) }, `Só ${hotNet}`) : null,
+        act(icon.trash, 'Apagar trilhas', clearTracks)));
+  }
+  function checkSection() {
+    const issues = board.check(sch), errs = issues.filter((i) => i.sev === 'erro').length, warns = issues.length - errs;
+    return h('section.ce-sec', {}, h('h3', {}, 'Verificação'),
+      h('p', { className: 'ce-verdict ' + (errs ? 'bad' : warns ? 'warn' : 'ok') }, issues.length ? `${errs} erro${errs === 1 ? '' : 's'} · ${warns} aviso${warns === 1 ? '' : 's'}` : (board.fps.length ? 'Tudo certo: todas as ligações do esquema estão feitas.' : 'Traga as peças do esquema para verificar.')),
+      issues.length ? h('div.ce-links', {}, ...issues.slice(0, 40).map((i) => h('button.ce-link', { type: 'button', disabled: !i.at, onclick: () => focusAt(i.at) }, h('span', {}, i.msg), h('em', { className: i.sev === 'erro' ? 'bad' : 'warn' }, i.sev)))) : null);
   }
   function layersSection() {
     return h('section.ce-sec', {}, h('h3', {}, 'Camadas e trilhas'),
