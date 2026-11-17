@@ -1,0 +1,138 @@
+//@nome Blocos
+//@name Blocks
+//@cor 0x7817
+//@versao 1
+//@desc Gire para mover, clique para girar a peca. Complete linhas!
+//@desc_en Turn to move, click to rotate. Clear lines!
+
+// Blocos (estilo Tetris) - app do BitOS (BitScript)
+var TOPO = 14
+var COLS = 10
+var LINS = 17
+var T = 8
+var X0 = 4
+var Y0 = 20
+var CORES = [PRETO, CIANO, AMARELO, 0xF81F, VERDE, VERM, AZUL, LARANJA]
+// as 7 pecas numa grade 4x4: x0,y0, x1,y1, x2,y2, x3,y3
+var PECAS = [[0,1, 1,1, 2,1, 3,1], [1,1, 2,1, 1,2, 2,2], [0,1, 1,1, 2,1, 1,2], [1,1, 2,1, 0,2, 1,2], [0,1, 1,1, 1,2, 2,2], [0,1, 1,1, 2,1, 2,2], [0,1, 1,1, 2,1, 0,2]]
+var PONTOS = [0, 10, 30, 50, 80]
+var estado = 0
+var pontos = 0
+var recorde = 0
+var novo = nao
+var quadro = 0
+var grade = lista(COLS * LINS, 0)
+var peca = 0
+var prox = 0
+var px = 3
+var py = 0
+var rot = 0
+var tempo = 0
+var linhas = 0
+var nivel = 1
+var cx = 0              // celula calculada por cel()
+var cy = 0
+
+func iniciar() { recorde = pega("recorde", 0); comecar() }
+func comecar() {
+  estado = 0; pontos = 0; novo = nao; linhas = 0; nivel = 1; tempo = 0
+  para (var i = 0; i < COLS * LINS; i++) { grade[i] = 0 }
+  prox = aleat(0, 6); nova()
+}
+func acabou() {
+  estado = 2; acesa(nao)
+  se pontos > recorde { recorde = pontos; novo = sim; guarda("recorde", recorde) }
+}
+// quadradinho i da peca p girada r vezes -> cx, cy
+func cel(p, r, i) {
+  cx = PECAS[p][i * 2]; cy = PECAS[p][i * 2 + 1]
+  se p == 1 { retorna }          // o quadrado nao gira
+  para (var k = 0; k < r % 4; k++) { var t = cx; cx = 3 - cy; cy = t }
+}
+func cabe(x, y, r) {
+  para (var i = 0; i < 4; i++) {
+    cel(peca, r, i); var a = cx + x; var b = cy + y
+    se a < 0 || a >= COLS || b >= LINS { retorna nao }
+    se b >= 0 && grade[b * COLS + a] { retorna nao }
+  }
+  retorna sim
+}
+func mover(dx, dy, dr) {
+  se cabe(px + dx, py + dy, rot + dr) { px += dx; py += dy; rot += dr; retorna sim }
+  retorna nao
+}
+func girar() { var K = [0, -1, 1, -2, 2]; para (var i = 0; i < 5; i++) { se mover(K[i], 0, 1) { retorna } } }
+func nova() { peca = prox; prox = aleat(0, 6); px = 3; py = -1; rot = 0; se !cabe(px, py, rot) { acabou() } }
+func evento(e) {
+  se estado == 2 { se e == CLIQUE { comecar() } retorna }
+  se estado == 0 { estado = 1; acesa(sim); se e == CLIQUE { retorna } }
+  se e == CIMA { mover(-1, 0, 0) }
+  se e == BAIXO { mover(1, 0, 0) }
+  se e == CLIQUE { girar() }
+}
+func passo() {
+  quadro++
+  se estado != 1 { retorna }
+  tempo++
+  se tempo < max(22 - nivel * 2, 3) { retorna }
+  tempo = 0
+  se mover(0, 1, 0) { retorna }
+  para (var i = 0; i < 4; i++) {
+    cel(peca, rot, i); var a = cx + px; var b = cy + py
+    se b < 0 { acabou(); retorna }
+    grade[b * COLS + a] = peca + 1
+  }
+  var feitas = 0
+  var y = LINS - 1
+  enquanto y >= 0 {
+    var cheia = sim
+    para (var x = 0; x < COLS; x++) { se !grade[y * COLS + x] { cheia = nao; sai } }
+    se cheia {
+      feitas++
+      para (var k = y; k > 0; k--) { para (var x = 0; x < COLS; x++) { grade[k * COLS + x] = grade[(k - 1) * COLS + x] } }
+      para (var x = 0; x < COLS; x++) { grade[x] = 0 }
+    } senao { y-- }
+  }
+  pontos += PONTOS[feitas] * nivel; linhas += feitas; nivel = 1 + linhas / 8
+  nivel = int(nivel)
+  nova()
+}
+func desenhar() {
+  limpa(PRETO)
+  borda(X0 - 1, Y0 - 1, COLS * T + 2, LINS * T + 2, CAIXA)
+  para (var y = 0; y < LINS; y++) {
+    para (var x = 0; x < COLS; x++) { var v = grade[y * COLS + x]; se v { ret(X0 + x * T, Y0 + y * T, T - 1, T - 1, CORES[v]) } }
+  }
+  se estado != 2 {
+    para (var i = 0; i < 4; i++) { cel(peca, rot, i); var a = cx + px; var b = cy + py; se b >= 0 { ret(X0 + a * T, Y0 + b * T, T - 1, T - 1, CORES[peca + 1]) } }
+  }
+  texto(90, 22, tr("Prox.", "Next"), 1, CINZA)
+  para (var i = 0; i < 4; i++) { cel(prox, 0, i); ret(92 + cx * 6, 30 + cy * 6, 5, 5, CORES[prox + 1]) }
+  texto(90, 64, tr("Nivel", "Level"), 1, CINZA); texto(90, 74, nivel, 2)
+  texto(90, 96, tr("Linhas", "Lines"), 1, CINZA); texto(90, 106, linhas, 2)
+  placar()
+}
+func placar() {
+  ret(0, 0, 128, TOPO - 2, FUNDO)
+  texto(3, 3, pontos); textod(125, 3, tr("Recorde ", "Best ") + recorde, 1, BTC)
+  se estado == 0 {
+    retr(8, 62, 112, 40, 8, FUNDO); bordar(8, 62, 112, 40, 8, BTC)
+    textoc(64, 68, tr("Blocos", "Blocks"), 1, BTC)
+    textoc(64, 80, tr("gire: mover", "turn: move"))
+    textoc(64, 91, tr("clique: girar", "click: rotate"), 1, CINZA)
+  }
+  se estado == 2 { fim() }
+}
+func fim() {
+  retr(10, 44, 108, 76, 8, FUNDO); bordar(10, 44, 108, 76, 8, VERM)
+  textoc(64, 50, tr("Fim de jogo", "Game over"), 1, VERM)
+  textoc(64, 62, pontos, 2)
+  se novo { se (quadro / 8) % 2 { textoc(64, 82, tr("Novo recorde!", "New record!"), 1, OURO) } }
+  senao { textoc(64, 82, tr("Recorde ", "Best ") + recorde, 1, BTC) }
+  textoc(64, 96, tr("clique: de novo", "click: again"))
+  textoc(64, 107, tr("segure: menu", "hold: menu"), 1, CINZA)
+}
+func icone(x, y, c) {
+  var Q = [[-16,-16, 2], [-8,-16, 2], [-16,-8, 2], [-8,-8, 2], [0,-8, 1], [8,-8, 1], [16,-8, 1], [-16,0, 4], [-8,0, 4], [-8,8, 4], [0,8, 4], [0,0, 6], [8,0, 6], [16,0, 6], [16,8, 6], [-16,8, 3], [8,8, 3]]
+  para (var i = 0; i < tam(Q); i++) { ret(x + Q[i][0] - 4, y + Q[i][1], 7, 7, CORES[Q[i][2]]) }
+}

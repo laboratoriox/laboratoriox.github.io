@@ -1,0 +1,118 @@
+//@nome Quebra-Blocos
+//@name Brick Breaker
+//@cor 0xC104
+//@versao 1
+//@desc Gire para mover a raquete e quebre todos os blocos.
+//@desc_en Turn to move the paddle and break every brick.
+
+// Quebra-Blocos - app do BitOS (BitScript)
+var TOPO = 14
+var RY = 148            // altura da raquete
+var RL = 26             // largura da raquete
+var TW = 19
+var TH = 7
+var TX = 3
+var TY = 26
+var CORES = [VERM, LARANJA, BTC, VERDE, AZUL]
+var estado = 0
+var pontos = 0
+var recorde = 0
+var novo = nao
+var quadro = 0
+var rx = 64
+var alvo = 64
+var bx = 64
+var by = 140
+var vx = 0
+var vy = 0
+var vel = 2.2
+var vidas = 3
+var nivel = 1
+var presa = sim
+var tijolo = lista(30, 1)
+
+func iniciar() { recorde = pega("recorde", 0); comecar() }
+func comecar() {
+  estado = 0; pontos = 0; novo = nao; rx = 64; alvo = 64; vidas = 3; nivel = 1; vel = 2.2; presa = sim
+  encher()
+}
+func encher() { para (var i = 0; i < 30; i++) { tijolo[i] = 1 } }
+func acabou() {
+  estado = 2; acesa(nao)
+  se pontos > recorde { recorde = pontos; novo = sim; guarda("recorde", recorde) }
+}
+func evento(e) {
+  se estado == 2 { se e == CLIQUE { comecar() } retorna }
+  se estado == 0 { estado = 1; acesa(sim) }
+  se e == CIMA { alvo = max(alvo - 12, RL / 2) }
+  se e == BAIXO { alvo = min(alvo + 12, 128 - RL / 2) }
+  se e == CLIQUE && presa { presa = nao; vy = -vel; se aleat(0, 1) { vx = 1.4 } senao { vx = -1.4 } }
+}
+func passo() {
+  quadro++
+  se estado != 1 { retorna }
+  se rx < alvo { rx = min(rx + 5, alvo) } senao se rx > alvo { rx = max(rx - 5, alvo) }
+  se presa { bx = rx; by = RY - 4; retorna }
+  para (var s = 0; s < 2; s++) {
+    bx += vx / 2; by += vy / 2
+    se bx < 3 { bx = 3; vx = abs(vx) }
+    se bx > 125 { bx = 125; vx = -abs(vx) }
+    se by < TOPO + 3 { by = TOPO + 3; vy = abs(vy) }
+    se vy > 0 && by + 3 >= RY && by + 3 <= RY + 6 && abs(bx - rx) <= RL / 2 + 3 {
+      // onde bate na raquete decide o angulo
+      var k = (bx - rx) / (RL / 2.0)
+      var v = vel * 1.4
+      vx = k * 2.4
+      se abs(vx) < 0.5 { se vx < 0 { vx = -0.5 } senao { vx = 0.5 } }
+      vy = -raiz(max(v * v - vx * vx, 1))
+    }
+    var c = int((bx - TX) / (TW + 2)); var r = int((by - TY) / (TH + 2))
+    se by >= TY && r >= 0 && r < 5 && c >= 0 && c < 6 && tijolo[r * 6 + c] {
+      tijolo[r * 6 + c] = 0; vy = -vy; pontos += 10 * (5 - r); sai
+    }
+  }
+  se by > 162 {
+    vidas--
+    se vidas <= 0 { acabou(); retorna }
+    presa = sim
+  }
+  se acha(tijolo, 1) < 0 { nivel++; vel = vel * 1.12; encher(); presa = sim; pontos += 100 }
+}
+func moedinha(x, y, r) { circ(x, y, r, BTC_E); circ(x, y, r - 1, BTC) }
+func desenhar() {
+  limpa(PRETO)
+  para (var r = 0; r < 5; r++) {
+    para (var c = 0; c < 6; c++) { se tijolo[r * 6 + c] { retr(TX + c * (TW + 2), TY + r * (TH + 2), TW, TH, 2, CORES[r]) } }
+  }
+  retr(int(rx) - RL / 2, RY, RL, 5, 2, BRANCO)
+  moedinha(int(bx), int(by), 3)
+  para (var i = 0; i < vidas; i++) { circ(6 + i * 8, 156, 2, VERM) }
+  textod(125, 153, tr("Nivel ", "Level ") + nivel, 1, CAIXA)
+  placar()
+}
+func placar() {
+  ret(0, 0, 128, TOPO - 2, FUNDO)
+  texto(3, 3, pontos); textod(125, 3, tr("Recorde ", "Best ") + recorde, 1, BTC)
+  se estado == 0 {
+    retr(8, 62, 112, 40, 8, FUNDO); bordar(8, 62, 112, 40, 8, BTC)
+    textoc(64, 68, tr("Quebra-Blocos", "Brick Breaker"), 1, BTC)
+    textoc(64, 80, tr("gire: mover", "turn: move"))
+    textoc(64, 91, tr("clique: lancar", "click: launch"), 1, CINZA)
+  }
+  se estado == 2 { fim() }
+}
+func fim() {
+  retr(10, 44, 108, 76, 8, FUNDO); bordar(10, 44, 108, 76, 8, VERM)
+  textoc(64, 50, tr("Fim de jogo", "Game over"), 1, VERM)
+  textoc(64, 62, pontos, 2)
+  se novo { se (quadro / 8) % 2 { textoc(64, 82, tr("Novo recorde!", "New record!"), 1, OURO) } }
+  senao { textoc(64, 82, tr("Recorde ", "Best ") + recorde, 1, BTC) }
+  textoc(64, 96, tr("clique: de novo", "click: again"))
+  textoc(64, 107, tr("segure: menu", "hold: menu"), 1, CINZA)
+}
+func icone(x, y, c) {
+  para (var i = 0; i < 3; i++) { retr(x - 21 + i * 15, y - 18, 12, 6, 2, CORES[i]) }
+  para (var i = 0; i < 2; i++) { retr(x - 14 + i * 15, y - 10, 12, 6, 2, CORES[i + 3]) }
+  circ(x + 4, y + 6, 4, BTC)
+  retr(x - 12, y + 15, 24, 5, 2, BRANCO)
+}

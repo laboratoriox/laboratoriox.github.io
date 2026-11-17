@@ -1,0 +1,100 @@
+//@nome Flappy Bit
+//@name Flappy Bit
+//@cor 0x2C5F
+//@versao 1
+//@desc Clique para a moedinha voar entre os canos.
+//@desc_en Click to fly the coin between the pipes.
+
+// Flappy Bit - app do BitOS (BitScript)
+var TOPO = 14
+var X = 32
+var LARGURA = 18
+var estado = 0          // 0 = esperando, 1 = jogando, 2 = fim
+var pontos = 0
+var recorde = 0
+var novo = nao
+var quadro = 0
+var y = 80
+var vy = 0
+var cx = [0, 0, 0]      // canos: x, centro do buraco e se ja passou
+var buraco = [0, 0, 0]
+var passou = [0, 0, 0]
+
+func iniciar() { recorde = pega("recorde", 0); comecar() }
+func comecar() {
+  estado = 0; pontos = 0; novo = nao; y = 80; vy = 0
+  para (var i = 0; i < 3; i++) { cx[i] = 140 + i * 66; buraco[i] = aleat(48, 124); passou[i] = 0 }
+}
+func abertura() { retorna max(40, 54 - pontos / 2) }
+func acabou() {
+  estado = 2; acesa(nao)
+  se pontos > recorde { recorde = pontos; novo = sim; guarda("recorde", recorde) }
+}
+func evento(e) {
+  se estado == 2 { se e == CLIQUE { comecar() } retorna }
+  se estado == 0 { estado = 1; acesa(sim) }
+  vy = -4.2
+}
+func passo() {
+  quadro++
+  se estado != 1 { retorna }
+  vy = min(vy + 0.42, 6)
+  y += vy
+  var vel = min(1.7 + pontos * 0.03, 3.2)
+  var ab = abertura()
+  para (var i = 0; i < 3; i++) {
+    cx[i] -= vel
+    se cx[i] < -LARGURA {
+      cx[i] = max(max(cx[0], cx[1]), cx[2]) + 66
+      buraco[i] = aleat(TOPO + 8 + ab / 2, 156 - ab / 2); passou[i] = 0
+    }
+    se !passou[i] && cx[i] + LARGURA < X - 6 { passou[i] = 1; pontos++ }
+    se X + 5 > cx[i] && X - 5 < cx[i] + LARGURA && (y - 5 < buraco[i] - ab / 2 || y + 5 > buraco[i] + ab / 2) { acabou(); retorna }
+  }
+  se y - 6 < TOPO || y + 6 > 160 { acabou() }
+}
+func moedinha(x, y, r) {
+  circ(x, y, r, BTC_E); circ(x, y, r - 1, BTC)
+  se r >= 5 { ret(x - 1, y - r + 2, 1, 2 * r - 3, BRANCO); ret(x - 1, y - r + 2, 3, 1, BRANCO); ret(x - 1, y, 3, 1, BRANCO); ret(x - 1, y + r - 2, 3, 1, BRANCO) }
+}
+func desenhar() {
+  para (var yy = TOPO; yy < 160; yy += 4) { ret(0, yy, 128, 4, rgb(20, 40 + yy / 4, 90 + yy / 3)) }
+  var ab = abertura()
+  para (var i = 0; i < 3; i++) {
+    var x = int(cx[i]); var a = buraco[i] - ab / 2; var b = buraco[i] + ab / 2
+    ret(x, TOPO, LARGURA, a - TOPO, VERDE_E); ret(x - 2, a - 6, LARGURA + 4, 6, VERDE)
+    ret(x, b, LARGURA, 160 - b, VERDE_E); ret(x - 2, b, LARGURA + 4, 6, VERDE)
+  }
+  var my = y
+  se estado == 0 { my = 80 + 3 * sen(quadro * 0.2) }
+  moedinha(X, int(my), 6)
+  se vy < 0 && estado == 1 { tri(X - 8, int(my), X - 14, int(my) - 6, X - 12, int(my) + 2, BRANCO) }
+  placar()
+}
+// faixa de cima e as caixas de comeco e fim (igual em todos os jogos)
+func placar() {
+  ret(0, 0, 128, TOPO - 2, FUNDO)
+  texto(3, 3, pontos); textod(125, 3, tr("Recorde ", "Best ") + recorde, 1, BTC)
+  se estado == 0 {
+    retr(8, 62, 112, 40, 8, FUNDO); bordar(8, 62, 112, 40, 8, BTC)
+    textoc(64, 68, "Flappy Bit", 1, BTC)
+    textoc(64, 80, tr("clique: voar", "click: fly"))
+    textoc(64, 91, tr("segure: menu", "hold: menu"), 1, CINZA)
+  }
+  se estado == 2 { fim() }
+}
+func fim() {
+  retr(10, 44, 108, 76, 8, FUNDO); bordar(10, 44, 108, 76, 8, VERM)
+  textoc(64, 50, tr("Fim de jogo", "Game over"), 1, VERM)
+  textoc(64, 62, pontos, 2)
+  se novo { se (quadro / 8) % 2 { textoc(64, 82, tr("Novo recorde!", "New record!"), 1, OURO) } }
+  senao { textoc(64, 82, tr("Recorde ", "Best ") + recorde, 1, BTC) }
+  textoc(64, 96, tr("clique: de novo", "click: again"))
+  textoc(64, 107, tr("segure: menu", "hold: menu"), 1, CINZA)
+}
+func icone(x, y, c) {
+  ret(x - 22, y - 22, 9, 16, VERDE); ret(x - 24, y - 8, 13, 4, VERDE)
+  ret(x + 12, y + 6, 9, 16, VERDE); ret(x + 10, y + 4, 13, 4, VERDE)
+  circ(x - 2, y, 10, BTC_E); circ(x - 2, y, 9, BTC); simbolo(x - 2, y, 2, BRANCO)
+  tri(x - 13, y - 1, x - 21, y - 9, x - 18, y + 3, BRANCO)
+}

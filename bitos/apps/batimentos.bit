@@ -1,0 +1,41 @@
+//@nome Batimentos
+//@name Heart rate
+//@cor 0xF800
+//@versao 1
+//@desc BPM e oxigenio (SpO2) pelo sensor MAX30102.
+//@desc_en BPM and oxygen (SpO2) from the MAX30102 sensor.
+
+// Batimentos - app do BitOS (BitScript). O sensor so liga com o app aberto.
+var quadro = 0
+func iniciar() { sensor(sim) }
+func ao_sair() { sensor(nao) }
+func passo() { quadro++; acesa(dedo()) }
+func coracao(x, y, r, c) {
+  circ(x - r / 2, y, r / 2 + 1, c); circ(x + r / 2, y, r / 2 + 1, c)
+  para (var i = 0; i <= r; i++) { var w = r + 1 - i; ret(x - w, y + i, w * 2, 1, c) }
+}
+func desenhar() {
+  limpa(PRETO)
+  ret(0, 0, 128, 16, VERM); texto(4, 4, tr("Batimentos", "Heart rate"))
+  se !temsensor() {
+    coracao(64, 48, 18, CAIXA)
+    textoc(64, 90, tr("Sensor nao", "Sensor not"), 1, VERM); textoc(64, 102, tr("encontrado", "found"), 1, VERM)
+    textoc(64, 118, tr("Veja os fios D4/D5", "Check wires D4/D5"), 1, CINZA)
+    retorna
+  }
+  se !dedo() {
+    coracao(64, 48, 18, CAIXA)
+    textoc(64, 90, tr("Coloque o dedo", "Place your finger")); textoc(64, 102, tr("no sensor", "on the sensor"))
+    retorna
+  }
+  var b = bpm(); var o = spo2()
+  var per = 30
+  se b > 30 { per = int(1800 / b) }
+  var r = 18
+  se quadro % per < 4 { r = 22 }
+  coracao(64, 46, r, VERM)
+  se b > 0 { textoc(64, 78, b, 4) } senao { textoc(64, 78, "--", 4) }
+  textoc(64, 112, "BPM", 1, CINZA)
+  se o > 0 { textoc(64, 126, "SpO2 " + o + "%", 2, TEAL) } senao { textoc(64, 126, "SpO2 --", 2, TEAL) }
+}
+func icone(x, y, c) { coracao(x, y - 6, 16, BRANCO) }

@@ -1,0 +1,120 @@
+//@nome Corre Satoshi
+//@name Satoshi Run
+//@cor 0xA280
+//@versao 1
+//@desc Clique para pular as velas vermelhas e pegue as moedas.
+//@desc_en Click to jump the red candles and grab the coins.
+
+// Corre Satoshi - app do BitOS (BitScript)
+var TOPO = 14
+var CHAO = 132
+var X = 22
+var estado = 0
+var pontos = 0
+var recorde = 0
+var novo = nao
+var quadro = 0
+var y = 132
+var vy = 0
+var vel = 2.6
+var noChao = sim
+var dist = 0
+// obstaculos: x, altura, moeda (1) ou vela (0), ativo
+var ox = [0, 0, 0, 0]
+var oh = [0, 0, 0, 0]
+var om = [0, 0, 0, 0]
+var oa = [0, 0, 0, 0]
+
+func iniciar() { recorde = pega("recorde", 0); comecar() }
+func comecar() {
+  estado = 0; pontos = 0; novo = nao; y = CHAO; vy = 0; vel = 2.6; noChao = sim; dist = 0
+  para (var i = 0; i < 4; i++) { oa[i] = 0 }
+  ox[0] = 150; oh[0] = 18; om[0] = 0; oa[0] = 1
+}
+func acabou() {
+  estado = 2; acesa(nao)
+  se pontos > recorde { recorde = pontos; novo = sim; guarda("recorde", recorde) }
+}
+func evento(e) {
+  se estado == 2 { se e == CLIQUE { comecar() } retorna }
+  se estado == 0 { estado = 1; acesa(sim) }
+  se noChao { vy = -6.4; noChao = nao }
+}
+func passo() {
+  quadro++
+  se estado != 1 { retorna }
+  vy += 0.48; y += vy
+  se y >= CHAO { y = CHAO; vy = 0; noChao = sim }
+  vel = min(2.6 + dist / 900.0, 5.2)
+  dist++
+  se dist % 6 == 0 { pontos++ }
+  var longe = -100
+  para (var i = 0; i < 4; i++) {
+    se oa[i] { ox[i] -= vel; se ox[i] < -12 { oa[i] = 0 } senao se ox[i] > longe { longe = ox[i] } }
+  }
+  se longe < 128 - aleat(70, 140) {
+    para (var i = 0; i < 4; i++) {
+      se !oa[i] {
+        var m = aleat(0, 3) == 0
+        ox[i] = 138; om[i] = m; oa[i] = 1
+        se m { oh[i] = aleat(26, 46) } senao { oh[i] = aleat(14, 28) }
+        sai
+      }
+    }
+  }
+  para (var i = 0; i < 4; i++) {
+    se !oa[i] { segue }
+    se om[i] {
+      se abs(ox[i] - X) < 9 && abs(CHAO - oh[i] - (y - 8)) < 11 { oa[i] = 0; pontos += 5 }
+    } senao se ox[i] < X + 6 && ox[i] + 8 > X - 6 && y > CHAO - oh[i] + 2 { acabou(); retorna }
+  }
+}
+func moedinha(x, y, r) {
+  circ(x, y, r, BTC_E); circ(x, y, r - 1, BTC)
+  se r >= 5 { ret(x - 1, y - r + 2, 1, 2 * r - 3, BRANCO); ret(x - 1, y - r + 2, 3, 1, BRANCO); ret(x - 1, y, 3, 1, BRANCO); ret(x - 1, y + r - 2, 3, 1, BRANCO) }
+}
+func satoshi(x, y, p, chao) {
+  circ(x, y - 16, 4, rgb(240, 200, 160))
+  retr(x - 4, y - 12, 9, 9, 2, BTC)
+  se chao { ret(x - 3 + p * 3, y - 3, 2, 7, BRANCO); ret(x + 2 - p * 3, y - 3, 2, 7, BRANCO) }
+  senao { ret(x - 4, y - 3, 2, 5, BRANCO); ret(x + 3, y - 3, 2, 5, BRANCO) }
+}
+func desenhar() {
+  para (var yy = TOPO; yy < CHAO + 4; yy += 4) { ret(0, yy, 128, 4, rgb(30 + yy / 6, 20 + yy / 8, 60 + yy / 3)) }
+  ret(0, CHAO + 4, 128, 160 - CHAO - 4, rgb(60, 40, 20))
+  para (var x = -(dist * 3 % 16); x < 128; x += 16) { ret(x, CHAO + 4, 8, 2, rgb(110, 80, 40)) }
+  para (var i = 0; i < 4; i++) {
+    se !oa[i] { segue }
+    var x = int(ox[i])
+    se om[i] { moedinha(x, CHAO - oh[i], 5) }
+    senao { ret(x + 3, CHAO - oh[i], 2, oh[i] + 4, VERM); ret(x, CHAO + 4 - oh[i], 8, oh[i], VERM) }   // vela vermelha (queda)
+  }
+  satoshi(X, int(y), int(dist / 3) % 2, noChao)
+  placar()
+}
+func placar() {
+  ret(0, 0, 128, TOPO - 2, FUNDO)
+  texto(3, 3, pontos); textod(125, 3, tr("Recorde ", "Best ") + recorde, 1, BTC)
+  se estado == 0 {
+    retr(8, 62, 112, 40, 8, FUNDO); bordar(8, 62, 112, 40, 8, BTC)
+    textoc(64, 68, tr("Corre Satoshi", "Satoshi Run"), 1, BTC)
+    textoc(64, 80, tr("clique: pular", "click: jump"))
+    textoc(64, 91, tr("segure: menu", "hold: menu"), 1, CINZA)
+  }
+  se estado == 2 { fim() }
+}
+func fim() {
+  retr(10, 44, 108, 76, 8, FUNDO); bordar(10, 44, 108, 76, 8, VERM)
+  textoc(64, 50, tr("Fim de jogo", "Game over"), 1, VERM)
+  textoc(64, 62, pontos, 2)
+  se novo { se (quadro / 8) % 2 { textoc(64, 82, tr("Novo recorde!", "New record!"), 1, OURO) } }
+  senao { textoc(64, 82, tr("Recorde ", "Best ") + recorde, 1, BTC) }
+  textoc(64, 96, tr("clique: de novo", "click: again"))
+  textoc(64, 107, tr("segure: menu", "hold: menu"), 1, CINZA)
+}
+func icone(x, y, c) {
+  ret(x - 22, y + 16, 44, 3, rgb(110, 80, 40))
+  ret(x + 10, y + 2, 8, 14, VERM); ret(x + 13, y - 2, 2, 4, VERM)
+  moedinha(x + 14, y - 14, 5)
+  satoshi(x - 8, y + 12, 0, nao)
+}

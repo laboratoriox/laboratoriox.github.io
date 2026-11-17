@@ -1,0 +1,6 @@
+por_do_sol.raw|Por do sol|Sunset
+circuito.raw|Circuito|Circuit
+codigo.raw|Codigo|Code rain
+ondas.raw|Ondas|Waves
+bitcoin_ouro.raw|Bitcoin dourado|Golden Bitcoin
+inventos.raw|Inventos|Inventos

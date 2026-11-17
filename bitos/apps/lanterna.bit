@@ -1,0 +1,14 @@
+//@nome Lanterna
+//@name Flashlight
+//@cor 0xF8B2
+//@versao 1
+//@desc A tela inteira acende. Clique troca a cor da luz.
+//@desc_en The whole screen lights up. Click changes the color.
+
+// Lanterna - app do BitOS (BitScript)
+var CORES = [BRANCO, rgb(255, 230, 170), VERM]
+var c = 0
+func iniciar() { acesa(sim) }
+func evento(e) { se e == CLIQUE || e == BAIXO { c = (c + 1) % 3 } se e == CIMA { c = (c + 2) % 3 } }
+func desenhar() { limpa(CORES[c]) }
+func icone(x, y, c) { tri(x - 12, y - 14, x + 12, y - 14, x, y + 2, BRANCO); ret(x - 5, y - 2, 10, 18, BRANCO) }

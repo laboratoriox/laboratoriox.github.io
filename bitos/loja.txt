@@ -1,0 +1,20 @@
+# Bit Store - gerado por gerar_loja.py
+# app|id|versao|cor|nome|name|descricao|description|kb
+# papel|arquivo.raw|nome|name|kb
+app|batimentos|1|0xF800|Batimentos|Heart rate|BPM e oxigenio (SpO2) pelo sensor MAX30102.|BPM and oxygen (SpO2) from the MAX30102 sensor.|2
+app|bitprice|1|0xF4A0|Bit Price|Bit Price|Preco do Bitcoin em dolar e real, com grafico de 24 h.|Bitcoin price in USD and BRL with a 24 h chart.|6
+app|blocos|1|0x7817|Blocos|Blocks|Gire para mover, clique para girar a peca. Complete linhas!|Turn to move, click to rotate. Clear lines!|6
+app|calc|1|0xFD20|Calc|Calc|Calculadora: gire para escolher a tecla e clique.|Calculator: turn to pick a key and click.|2
+app|cobrinha|1|0x0360|Cobrinha|Snake|Gire para virar e coma as moedas sem bater.|Turn to steer and eat the coins without crashing.|4
+app|corre|1|0xA280|Corre Satoshi|Satoshi Run|Clique para pular as velas vermelhas e pegue as moedas.|Click to jump the red candles and grab the coins.|5
+app|crono|1|0x0596|Cronometro|Stopwatch|Cronometro com voltas. Clique inicia e pausa.|Stopwatch with laps. Click starts and pauses.|2
+app|flappy|1|0x2C5F|Flappy Bit|Flappy Bit|Clique para a moedinha voar entre os canos.|Click to fly the coin between the pipes.|4
+app|lanterna|1|0xF8B2|Lanterna|Flashlight|A tela inteira acende. Clique troca a cor da luz.|The whole screen lights up. Click changes the color.|1
+app|notas|1|0x0596|Notas|Notes|Grava notas de voz no cartao (ate 5 min cada).|Records voice notes to the SD card (up to 5 min each).|2
+app|quebra|1|0xC104|Quebra-Blocos|Brick Breaker|Gire para mover a raquete e quebre todos os blocos.|Turn to move the paddle and break every brick.|5
+papel|bitcoin_ouro.raw|Bitcoin dourado|Golden Bitcoin|40
+papel|circuito.raw|Circuito|Circuit|40
+papel|codigo.raw|Codigo|Code rain|40
+papel|inventos.raw|Inventos|Inventos|40
+papel|ondas.raw|Ondas|Waves|40
+papel|por_do_sol.raw|Por do sol|Sunset|40

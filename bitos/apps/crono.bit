@@ -1,0 +1,39 @@
+//@nome Cronometro
+//@name Stopwatch
+//@cor 0x0596
+//@versao 1
+//@desc Cronometro com voltas. Clique inicia e pausa.
+//@desc_en Stopwatch with laps. Click starts and pauses.
+
+// Cronometro - app do BitOS (BitScript)
+var ligado = nao
+var inicio = 0
+var acum = 0
+var voltas = []
+
+func agora() { se ligado { retorna acum + ms() - inicio } retorna acum }
+func evento(e) {
+  se e == CLIQUE {
+    se ligado { acum += ms() - inicio; ligado = nao; acesa(nao) } senao { inicio = ms(); ligado = sim; acesa(sim) }
+  }
+  se e == BAIXO || e == CIMA {
+    se ligado { insere(voltas, 0, agora()); se tam(voltas) > 3 { tira(voltas) } }
+    senao { acum = 0; voltas = [] }
+  }
+}
+func dois(n) { se n < 10 { retorna "0" + n } retorna txt(n) }
+func formata(t) { retorna dois(int(t / 60000) % 100) + ":" + dois(int(t / 1000) % 60) + "." + int(t / 100) % 10 }
+func desenhar() {
+  limpa(PRETO)
+  ret(0, 0, 128, 16, TEAL); texto(4, 4, tr("Cronometro", "Stopwatch"))
+  var t = agora()
+  textoc(64, 40, dois(int(t / 60000) % 100) + ":" + dois(int(t / 1000) % 60), 3)
+  textoc(64, 68, "." + int(t / 100) % 10, 2, CINZA)
+  para (var i = 0; i < tam(voltas); i++) { textoc(64, 90 + i * 11, tr("volta ", "lap ") + (tam(voltas) - i) + "  " + formata(voltas[i]), 1, OURO) }
+  se ligado { textoc(64, 126, tr("clique: pausar", "click: pause"), 1, TEAL); textoc(64, 138, tr("gire: volta", "turn: lap"), 1, CINZA) }
+  senao { textoc(64, 126, tr("clique: iniciar", "click: start"), 1, TEAL); textoc(64, 138, tr("gire: zerar", "turn: reset"), 1, CINZA) }
+}
+func icone(x, y, c) {
+  circ(x, y + 2, 15, BRANCO); circ(x, y + 2, 12, c); ret(x - 3, y - 18, 6, 5, BRANCO)
+  linha(x, y + 2, x, y - 8, BRANCO); linha(x, y + 2, x + 6, y + 2, BRANCO)
+}

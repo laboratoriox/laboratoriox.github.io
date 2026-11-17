@@ -1,0 +1,43 @@
+//@nome Notas
+//@name Notes
+//@cor 0x0596
+//@versao 1
+//@desc Grava notas de voz no cartao (ate 5 min cada).
+//@desc_en Records voice notes to the SD card (up to 5 min each).
+
+// Notas - app do BitOS (BitScript). Os arquivos vao para /NOTAS no cartao.
+var sel = 0
+var topo = 0
+func ao_sair() { se gravando() { grava(nao) } }
+func passo() { acesa(gravando()) }
+func evento(e) {
+  var n = 1 + numnotas()
+  se e == CIMA && sel > 0 { sel-- }
+  se e == BAIXO && sel < n - 1 { sel++ }
+  se e == CLIQUE {
+    se sel == 0 {
+      var g = gravando()
+      se !grava(!g) { se temcartao() { aviso(tr("Microfone falhou", "Mic failed")) } senao { aviso(tr("Sem cartao", "No SD card")) } }
+      senao se g { aviso(tr("Nota salva", "Note saved")) }
+    } senao { aviso(tr("Envie pelo Bluetooth", "Send via Bluetooth")) }
+  }
+  se sel < topo { topo = sel }
+  se sel > topo + 4 { topo = sel - 4 }
+}
+func desenhar() {
+  limpa(PRETO)
+  ret(0, 0, 128, 16, TEAL); texto(4, 4, tr("Notas", "Notes"))
+  var n = 1 + numnotas()
+  para (var k = 0; k < 5 && topo + k < n; k++) {
+    var i = topo + k; var y = 22 + k * 24
+    se i == sel { retr(4, y, 120, 20, 6, AZUL) }
+    se i == 0 {
+      se gravando() { var t = tempograv(); circ(12, y + 10, 3, VERM); texto(20, y + 6, tr("Parar  ", "Stop  ") + int(t / 60) + ":" + int(t % 60 / 10) + t % 10) }
+      senao { texto(10, y + 6, tr("Gravar nota", "Record note"), 1, OURO) }
+    } senao { texto(10, y + 6, nomenota(i - 1)) }
+  }
+}
+func icone(x, y, c) {
+  retr(x - 6, y - 16, 12, 22, 6, BRANCO); aro(x, y + 2, 11, BRANCO); ret(x - 12, y - 10, 24, 12, c)
+  retr(x - 6, y - 16, 12, 22, 6, BRANCO); ret(x - 1, y + 12, 3, 6, BRANCO); ret(x - 7, y + 17, 15, 2, BRANCO)
+}

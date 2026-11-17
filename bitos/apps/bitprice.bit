@@ -1,0 +1,166 @@
+//@nome Bit Price
+//@name Bit Price
+//@cor 0xF4A0
+//@versao 1
+//@desc Preco do Bitcoin em dolar e real, com grafico de 24 h.
+//@desc_en Bitcoin price in USD and BRL with a 24 h chart.
+
+// Bit Price - app do BitOS (BitScript). Precisa do Wi-Fi ligado.
+var GECKO = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd,brl&include_24hr_change=true"
+var GRAFICO = "https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1"
+var CB_USD = "https://api.coinbase.com/v2/prices/BTC-USD/spot"
+var CB_BRL = "https://api.coinbase.com/v2/prices/BTC-BRL/spot"
+var moeda = 0           // 0 = dolar, 1 = real
+var usd = 0
+var brl = 0
+var var24 = nada
+var hist = []
+var etapa = 0           // 0 = parado, 1 = preco, 2 = coinbase dolar, 3 = coinbase real, 4 = grafico
+var erro = ""
+var horaTxt = ""
+var ultimo = -999999
+var ultGrafico = -999999
+var quadro = 0
+
+func iniciar() {
+  moeda = pega("moeda", 0); usd = pega("usd", 0); brl = pega("brl", 0); horaTxt = pega("hora", "")
+  atualizar()
+}
+func atualizar() {
+  se etapa != 0 { retorna }
+  erro = ""; ultimo = ms(); etapa = 1; baixa(GECKO); acesa(sim)
+}
+// numero logo depois de uma chave no texto (nada se nao achar)
+func numDepois(s, chave) {
+  var i = acha(s, chave)
+  se i < 0 { retorna nada }
+  i += tam(chave)
+  retorna num(fatia(s, i, i + 24))
+}
+func doisDig(n) { se n < 10 { retorna "0" + n } retorna txt(n) }
+func pronto() {
+  etapa = 0; acesa(nao); horaTxt = doisDig(hora()) + ":" + doisDig(minuto())
+  guarda("usd", int(usd)); guarda("brl", int(brl)); guarda("hora", horaTxt)
+  se tam(hist) { hist[tam(hist) - 1] = usd }
+}
+func passo() {
+  quadro++
+  se etapa == 0 { se ms() - ultimo > 120000 { atualizar() } retorna }
+  var r = resposta()
+  se r == nada { retorna }
+  var c = codigo()
+  se c == -2 { erro = tr("Ligue o Wi-Fi", "Turn on Wi-Fi"); etapa = 0; acesa(nao); retorna }
+  se etapa == 1 {
+    var u = nada
+    se c == 200 { u = numDepois(r, "\"usd\":") }
+    se u == nada { etapa = 2; baixa(CB_USD); retorna }       // plano B: Coinbase
+    usd = u
+    var b = numDepois(r, "\"brl\":"); se b != nada { brl = b }
+    var24 = numDepois(r, "\"usd_24h_change\":")
+    se ms() - ultGrafico > 600000 || tam(hist) < 2 { etapa = 4; baixa(GRAFICO); retorna }
+    pronto(); retorna
+  }
+  se etapa == 2 {
+    var u = nada
+    se c == 200 { u = numDepois(r, "\"amount\":\"") }
+    se u == nada { etapa = 0; acesa(nao); se c < 0 { erro = tr("Erro na internet", "Network error") } senao { erro = tr("Site nao respondeu", "Site error") } retorna }
+    usd = u; var24 = nada; etapa = 3; baixa(CB_BRL); retorna
+  }
+  se etapa == 3 {
+    se c == 200 { var b = numDepois(r, "\"amount\":\""); se b != nada { brl = b } }
+    pronto(); retorna
+  }
+  se etapa == 4 {
+    se c == 200 { lerGrafico(r); ultGrafico = ms() }
+    pronto()
+  }
+}
+// {"prices":[[1700000000000,97000.1],[...]], ...} -> 48 pontos
+func lerGrafico(s) {
+  var i = acha(s, "\"prices\":[")
+  se i < 0 { retorna }
+  var fimLista = acha(s, "]]", i)
+  var v = []
+  i += 10
+  enquanto i < fimLista && tam(v) < 400 {
+    var virg = acha(s, ",", i)
+    se virg < 0 || virg > fimLista { sai }
+    poe(v, num(fatia(s, virg + 1, virg + 20)))
+    i = acha(s, "]", virg)
+    se i < 0 { sai }
+    i += 2
+  }
+  se tam(v) < 2 { retorna }
+  hist = []
+  para (var k = 0; k < 48; k++) {
+    var a = int(k * tam(v) / 48); var b = int((k + 1) * tam(v) / 48)
+    se b <= a { b = a + 1 }
+    var soma = 0.0
+    para (var j = a; j < b; j++) { soma += v[j] }
+    poe(hist, soma / (b - a))
+  }
+}
+func evento(e) {
+  se e == BAIXO || e == CIMA { moeda = 1 - moeda; guarda("moeda", moeda) }
+  se e == CLIQUE { atualizar() }
+}
+func virgula(s) {
+  se idioma() { retorna s }
+  var i = acha(s, ".")
+  se i < 0 { retorna s }
+  retorna fatia(s, 0, i) + "," + fatia(s, i + 1)
+}
+func desenhar() {
+  limpa(PRETO)
+  ret(0, 0, 128, 16, BTC); texto(4, 4, "Bit Price", 1, PRETO); textod(124, 4, doisDig(hora()) + ":" + doisDig(minuto()), 1, PRETO)
+  circ(16, 34, 10, BTC); simbolo(16, 34, 1, BRANCO)
+  texto(32, 24, "BTC", 1, CINZA)
+  se moeda { texto(32, 34, "BRL", 1, BTC) } senao { texto(32, 34, "USD", 1, BTC) }
+  var fator = 1.0
+  se moeda && usd > 0 { fator = brl / usd }
+  se usd <= 0 {
+    se etapa { textoc(64, 70, tr("Atualizando...", "Updating...")) } senao { textoc(64, 70, tr("Sem dados", "No data")) }
+  } senao {
+    var p = usd
+    se moeda { p = brl }
+    var s = "$" + milhar(p)
+    se moeda { s = "R$" + milhar(p) }
+    var t = 2
+    se tam(s) * 12 > 124 { t = 1 }
+    textoc(64, 52, s, t)
+    se var24 != nada {
+      var v = virgula(fmt(var24, 2)) + "% " + tr("em 24h", "in 24h")
+      se var24 >= 0 { textoc(64, 72, "+" + v, 1, VERDE) } senao { textoc(64, 72, v, 1, VERM) }
+    }
+    grafico(8, 84, 112, 40, fator)
+  }
+  var st = ""
+  var cor = CINZA
+  se etapa == 1 || etapa == 2 || etapa == 3 { st = tr("Baixando...", "Downloading..."); cor = BTC }
+  senao se etapa == 4 { st = tr("Baixando grafico...", "Loading chart..."); cor = BTC }
+  senao se erro != "" { st = erro; cor = VERM }
+  senao se horaTxt != "" { st = tr("Atualizado ", "Updated ") + horaTxt }
+  textoc(64, 128, st, 1, cor)
+  se (quadro / 90) % 2 { textoc(64, 140, tr("gire: USD/BRL", "turn: USD/BRL"), 1, CAIXA) } senao { textoc(64, 140, tr("clique: atualizar", "click: refresh"), 1, CAIXA) }
+}
+func grafico(x, y, w, h, fator) {
+  borda(x - 1, y - 1, w + 2, h + 2, CINZA_E)
+  var n = tam(hist)
+  se n < 2 { retorna }
+  var mn = hist[0]; var mx = hist[0]
+  para (var i = 1; i < n; i++) { mn = min(mn, hist[i]); mx = max(mx, hist[i]) }
+  se mx - mn < 1 { mx = mn + 1 }
+  var cor = VERM
+  se hist[n - 1] >= hist[0] { cor = VERDE }
+  var px = 0; var py = 0
+  para (var i = 0; i < n; i++) {
+    var xx = x + int(i * (w - 1) / (n - 1)); var yy = y + h - 1 - int((hist[i] - mn) / (mx - mn) * (h - 1))
+    se i { linha(px, py, xx, yy, cor); linha(px, py + 1, xx, yy + 1, cor) }
+    px = xx; py = yy
+  }
+  texto(x + 1, y + 1, milhar(mx * fator), 1, CAIXA)
+  texto(x + 1, y + h - 8, milhar(mn * fator), 1, CAIXA)
+}
+func icone(x, y, c) {
+  circ(x, y, 18, BRANCO); circ(x, y, 15, BTC_E); simbolo(x, y, 2, BRANCO)
+}

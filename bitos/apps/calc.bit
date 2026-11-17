@@ -1,0 +1,65 @@
+//@nome Calc
+//@name Calc
+//@cor 0xFD20
+//@versao 1
+//@desc Calculadora: gire para escolher a tecla e clique.
+//@desc_en Calculator: turn to pick a key and click.
+
+// Calc - app do BitOS (BitScript)
+var TECLAS = "789/456x123-C0=+"
+var sel = 0
+var a = 0
+var atual = 0
+var op = ""
+var novo = sim
+var erro = nao
+
+func conta(x, o, y) {
+  var r = 0.0
+  se o == "+" { r = real(x) + y } senao se o == "-" { r = real(x) - y } senao se o == "x" { r = real(x) * y }
+  senao se o == "/" { se y == 0 { erro = sim; retorna 0 } r = int(x / y) }
+  senao { r = y }
+  se abs(r) > 2000000000 { erro = sim; retorna 0 }
+  retorna int(r)
+}
+func tecla(t) {
+  se erro && t != "C" { retorna }
+  se cod(t) >= cod("0") && cod(t) <= cod("9") {
+    se novo { atual = 0; novo = nao }
+    se abs(atual) < 100000000 { atual = atual * 10 + (cod(t) - cod("0")) }
+  } senao se t == "C" { a = 0; atual = 0; op = ""; novo = sim; erro = nao }
+  senao se t == "=" { se op != "" { atual = conta(a, op, atual); op = ""; novo = sim } }
+  senao {
+    se op != "" && !novo { atual = conta(a, op, atual) }
+    a = atual; op = t; novo = sim
+  }
+}
+func evento(e) {
+  se e == CIMA { sel = (sel + 15) % 16 }
+  se e == BAIXO { sel = (sel + 1) % 16 }
+  se e == CLIQUE { tecla(TECLAS[sel]) }
+}
+func desenhar() {
+  limpa(PRETO)
+  ret(0, 0, 128, 16, LARANJA); texto(4, 4, "Calc", 1, PRETO)
+  ret(4, 20, 120, 24, BRANCO)
+  var vis = txt(atual)
+  se erro { vis = tr("Erro", "Error") }
+  var t = 2
+  se tam(vis) > 9 { t = 1 }
+  textod(120, 24 + (2 - t) * 4, vis, t, PRETO)
+  se op != "" { texto(7, 23, op, 1, LARANJA) }
+  para (var k = 0; k < 16; k++) {
+    var x = 4 + (k % 4) * 31; var y = 48 + int(k / 4) * 28; var c = TECLAS[k]
+    var ehOp = acha("/x-+=", c) >= 0
+    var cor = CAIXA
+    var corT = BRANCO
+    se ehOp { corT = OURO }
+    se k == sel { cor = BRANCO; corT = PRETO }
+    retr(x, y, 28, 25, 6, cor)
+    textoc(x + 14, y + 5, c, 2, corT)
+  }
+}
+func icone(x, y, c) {
+  para (var k = 0; k < 4; k++) { retr(x - 15 + (k % 2) * 17, y - 15 + int(k / 2) * 17, 13, 13, 3, BRANCO) }
+}
